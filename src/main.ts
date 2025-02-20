@@ -1,16 +1,103 @@
 import kaplay from "kaplay";
-import "kaplay/global"; // uncomment if you want to use without the  prefix
-
+import "kaplay/global";
 kaplay();
 
 loadRoot("./"); // A good idea for Itch.io publishing later
 loadSprite("bean", "sprites/bean.png");
 loadSprite("sock", "sprites/Sock.png");
+loadSprite("greaser", "sprites/greaser.png");
+loadSprite("rock", "sprites/rock_1.png");
 loadSound("boom", "sounds/boom.mp3");
+
+// set background
+setBackground(105,105,105)
+
+// dialogue handling code yoinked from one of my other games lol
+const shopDialogue = [
+    {speaker: "Greaser", text: "Hey, I'm walking here!"},
+]
+let talking = false
+function showDialogue(dialogues: { speaker: string; text: string }[], onComplete?: () => void) {
+    if (talking) {return}
+    //debug.log("here!");
+    let currentDialogueIndex = 0;
+    talking = true
+    const dialogueBox = add([
+        rect(width() - 40, 100),
+        // pos looks alright, but y pos isnt good
+        pos(player.pos.x - (width() / 2), player.pos.y + (height() / 2) - 120),
+        outline(2),
+        color(0, 0, 0),
+        opacity(0.8),
+        z(3),
+        area(),
+        "dialogueBox"
+    ]);
+
+    const speakerText = add([
+        text("", { size: 16, width: width() - 60 }),
+        pos(player.pos.x - (width() / 2) + 10, player.pos.y + (height() / 2)),
+        color(255, 255, 255),
+        z(3),
+        "speakerText"
+    ]);
+
+    const dialogueText = add([
+        text("", { size: 20, width: width() - 60 }),
+        pos(player.pos.x - (width() / 2) + 10, player.pos.y + (height() / 2)),
+        color(255, 255, 255),
+        z(3),
+        "dialogueText"
+    ]);
+
+    // make sure to update this here!
+    const dialougePosUpdater = dialogueBox.onUpdate(() => {
+        dialogueBox.pos.x = (player.pos.x - (width() / 2));
+        dialogueBox.pos.y = player.pos.y + (height() / 2) - 120;
+
+        speakerText.pos.x = player.pos.x - (width() / 2) + 10
+        speakerText.pos.y = player.pos.y + (height() / 2) - 100
+
+        dialogueText.pos.x = player.pos.x - (width() / 2) + 10
+        dialogueText.pos.y = player.pos.y + (height() / 2) - 80
+    })
+    function updateDialogue() {
+        const currentDialogue = dialogues[currentDialogueIndex];
+        speakerText.text = currentDialogue.speaker;
+        dialogueText.text = currentDialogue.text;
+    }
+
+    const advanceDialogueListener = onKeyPress("space", () => {
+        currentDialogueIndex++;
+        if (currentDialogueIndex < dialogues.length) {
+            updateDialogue();
+        } else {
+            destroy(dialogueBox);
+            destroy(speakerText);
+            destroy(dialogueText);
+            if (onComplete) {
+                advanceDialogueListener.cancel();
+                dialougePosUpdater.cancel();
+                talking = false;
+                onComplete();
+            }
+        }
+    });
+
+    updateDialogue();
+}
+
 
 const player = add([
     pos(120, 80), sprite("sock"), area(), body(), "player"
 ]);
+const greaser = add([
+    pos(100,100), sprite("greaser"), area(), body(), "greaser"
+])
+onCollide("player", "greaser", () => {
+    //debug.log("bonk!");
+    showDialogue(shopDialogue)
+})
 
 const SPEED = 200;
 onKeyDown("left", () => {
@@ -26,7 +113,17 @@ onKeyDown("down", () => {
   player.move(0, SPEED);
 })
 
-
+player.onUpdate(() => {
+  camPos(player.pos);
+})
+for (let i = 0; i < 10; i++) {
+  add([
+      pos(randi(width()), randi(height())),
+      sprite("rock"),
+      area({scale:0.75}),
+      body(),
+  ])
+}
 /*
 let velocity = { x: 0, y: 0 };
 window.addEventListener("keydown", (e) => {
