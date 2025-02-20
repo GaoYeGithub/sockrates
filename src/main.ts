@@ -1,18 +1,34 @@
 import kaplay from "kaplay";
-// import "kaplay/global"; // uncomment if you want to use without the k. prefix
+import "kaplay/global"; // uncomment if you want to use without the  prefix
 
-const k = kaplay();
+kaplay();
 
-k.loadRoot("./"); // A good idea for Itch.io publishing later
-k.loadSprite("bean", "sprites/bean.png");
-k.loadSprite("sock", "sprites/sock.png");
-k.loadSound("boom", "sounds/boom.mp3");
+loadRoot("./"); // A good idea for Itch.io publishing later
+loadSprite("bean", "sprites/bean.png");
+loadSprite("sock", "sprites/Sock.png");
+loadSound("boom", "sounds/boom.mp3");
 
-const sockObj = k.add([k.pos(120, 80), k.sprite("sock")]);
+const player = add([
+    pos(120, 80), sprite("sock"), area(), body(), "player"
+]);
 
-const speed = 200;
+const SPEED = 200;
+onKeyDown("left", () => {
+  player.move(-SPEED, 0);
+})
+onKeyDown("right", () => {
+  player.move(SPEED, 0);
+})
+onKeyDown("up", () => {
+  player.move(0, -SPEED);
+})
+onKeyDown("down", () => {
+  player.move(0, SPEED);
+})
+
+
+/*
 let velocity = { x: 0, y: 0 };
-
 window.addEventListener("keydown", (e) => {
   switch(e.key.toLowerCase()){
     case "w":
@@ -55,8 +71,8 @@ function update() {
   requestAnimationFrame(update);
 }
 requestAnimationFrame(update);
-
-k.onClick(() => {
-  k.play("boom");
-  k.addKaboom(k.mousePos());
+*/
+onClick(() => {
+  play("boom");
+  addKaboom(mousePos());
 });
