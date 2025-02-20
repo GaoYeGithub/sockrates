@@ -1,0 +1,17 @@
+{
+	"name": "sockrates",
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"dev": "vite",
+		"preview": "vite preview",
+		"zip": "npm run build && mkdir -p dist && zip -r dist/game.zip dist -x \"**/.DS_Store\""
+	},
+	"dependencies": {
+		"kaplay": "^3001.0.9"
+	},
+	"devDependencies": {
+		"@types/node": "^22.13.4",
+		"vite": "^6.1.1"
+	}
+}
