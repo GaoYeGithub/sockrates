@@ -2,9 +2,13 @@ import kaplay from "kaplay";
 import "kaplay/global";
 kaplay();
 
-loadRoot("./"); // A good idea for Itch.io publishing later
+loadRoot("./");
 loadSprite("bean", "sprites/bean.png");
-loadSprite("sock", "sprites/Sock.png");
+loadSprite("sock", "sprites/Sock-Sheet.png", {
+    sliceX: 6,
+    sliceY: 1,
+});
+loadSprite("water-bullet", "sprites/water-bullet.png");
 loadSprite("greaser", "sprites/greaser.png");
 loadSprite("rock", "sprites/rock_1.png");
 loadSound("boom", "sounds/boom.mp3");
@@ -14,89 +18,97 @@ setBackground(105,105,105)
 
 // dialogue handling code yoinked from one of my other games lol
 const shopDialogue = [
-    {speaker: "Greaser", text: "Hey, I'm walking here!"},
+  {speaker: "Greaser", text: "Hey, I'm walking here!"},
 ]
 let talking = false
 function showDialogue(dialogues: { speaker: string; text: string }[], onComplete?: () => void) {
-    if (talking) {return}
-    //debug.log("here!");
-    let currentDialogueIndex = 0;
-    talking = true
-    const dialogueBox = add([
-        rect(width() - 40, 100),
-        // pos looks alright, but y pos isnt good
-        pos(player.pos.x - (width() / 2), player.pos.y + (height() / 2) - 120),
-        outline(2),
-        color(0, 0, 0),
-        opacity(0.8),
-        z(3),
-        area(),
-        "dialogueBox"
-    ]);
+  if (talking) {return}
+  //debug.log("here!");
+  let currentDialogueIndex = 0;
+  talking = true
+  const dialogueBox = add([
+      rect(width() - 40, 100),
+      // pos looks alright, but y pos isnt good
+      pos(player.pos.x - (width() / 2), player.pos.y + (height() / 2) - 120),
+      outline(2),
+      color(0, 0, 0),
+      opacity(0.8),
+      z(3),
+      area(),
+      "dialogueBox"
+  ]);
 
-    const speakerText = add([
-        text("", { size: 16, width: width() - 60 }),
-        pos(player.pos.x - (width() / 2) + 10, player.pos.y + (height() / 2)),
-        color(255, 255, 255),
-        z(3),
-        "speakerText"
-    ]);
+  const speakerText = add([
+      text("", { size: 16, width: width() - 60 }),
+      pos(player.pos.x - (width() / 2) + 10, player.pos.y + (height() / 2)),
+      color(255, 255, 255),
+      z(3),
+      "speakerText"
+  ]);
 
-    const dialogueText = add([
-        text("", { size: 20, width: width() - 60 }),
-        pos(player.pos.x - (width() / 2) + 10, player.pos.y + (height() / 2)),
-        color(255, 255, 255),
-        z(3),
-        "dialogueText"
-    ]);
+  const dialogueText = add([
+      text("", { size: 20, width: width() - 60 }),
+      pos(player.pos.x - (width() / 2) + 10, player.pos.y + (height() / 2)),
+      color(255, 255, 255),
+      z(3),
+      "dialogueText"
+  ]);
 
-    // make sure to update this here!
-    const dialougePosUpdater = dialogueBox.onUpdate(() => {
-        dialogueBox.pos.x = (player.pos.x - (width() / 2));
-        dialogueBox.pos.y = player.pos.y + (height() / 2) - 120;
+  // make sure to update this here!
+  const dialougePosUpdater = dialogueBox.onUpdate(() => {
+      dialogueBox.pos.x = (player.pos.x - (width() / 2));
+      dialogueBox.pos.y = player.pos.y + (height() / 2) - 120;
 
-        speakerText.pos.x = player.pos.x - (width() / 2) + 10
-        speakerText.pos.y = player.pos.y + (height() / 2) - 100
+      speakerText.pos.x = player.pos.x - (width() / 2) + 10
+      speakerText.pos.y = player.pos.y + (height() / 2) - 100
 
-        dialogueText.pos.x = player.pos.x - (width() / 2) + 10
-        dialogueText.pos.y = player.pos.y + (height() / 2) - 80
-    })
-    function updateDialogue() {
-        const currentDialogue = dialogues[currentDialogueIndex];
-        speakerText.text = currentDialogue.speaker;
-        dialogueText.text = currentDialogue.text;
-    }
+      dialogueText.pos.x = player.pos.x - (width() / 2) + 10
+      dialogueText.pos.y = player.pos.y + (height() / 2) - 80
+  })
+  function updateDialogue() {
+      const currentDialogue = dialogues[currentDialogueIndex];
+      speakerText.text = currentDialogue.speaker;
+      dialogueText.text = currentDialogue.text;
+  }
 
-    const advanceDialogueListener = onKeyPress("space", () => {
-        currentDialogueIndex++;
-        if (currentDialogueIndex < dialogues.length) {
-            updateDialogue();
-        } else {
-            destroy(dialogueBox);
-            destroy(speakerText);
-            destroy(dialogueText);
-            if (onComplete) {
-                advanceDialogueListener.cancel();
-                dialougePosUpdater.cancel();
-                talking = false;
-                onComplete();
-            }
-        }
-    });
+  const advanceDialogueListener = onKeyPress("space", () => {
+      currentDialogueIndex++;
+      if (currentDialogueIndex < dialogues.length) {
+          updateDialogue();
+      } else {
+          destroy(dialogueBox);
+          destroy(speakerText);
+          destroy(dialogueText);
+          if (onComplete) {
+              advanceDialogueListener.cancel();
+              dialougePosUpdater.cancel();
+              talking = false;
+              onComplete();
+          }
+      }
+  });
 
-    updateDialogue();
+  updateDialogue();
 }
 
 
 const player = add([
-    pos(120, 80), sprite("sock"), area(), body(), "player"
+    pos(120, 80),
+    sprite("sock", { frame: 5 }),
+    area(),
+    body(),
+    "player",
+    { 
+        waterLevel: 5,
+        shootCooldown: 0,
+    },
 ]);
 const greaser = add([
-    pos(100,100), sprite("greaser"), area(), body(), "greaser"
+  pos(100,100), sprite("greaser"), area(), body(), "greaser"
 ])
 onCollide("player", "greaser", () => {
-    //debug.log("bonk!");
-    showDialogue(shopDialogue)
+  //debug.log("bonk!");
+  showDialogue(shopDialogue)
 })
 
 const SPEED = 200;
@@ -115,6 +127,9 @@ onKeyDown("down", () => {
 
 player.onUpdate(() => {
   camPos(player.pos);
+  if (player.shootCooldown > 0) {
+    player.shootCooldown -= dt();
+  }
 })
 for (let i = 0; i < 10; i++) {
   add([
@@ -170,6 +185,31 @@ function update() {
 requestAnimationFrame(update);
 */
 onClick(() => {
-  play("boom");
-  addKaboom(mousePos());
+    if (player.waterLevel <= 0 || player.shootCooldown > 0) return;
+    
+    play("boom");
+    
+    const direction = mousePos().sub(player.pos).unit();
+    
+    const bullet = add([
+        sprite("water-bullet"),
+        pos(player.pos.add(direction.scale(20))),
+        area(),
+        rotate(direction.angle()),
+        move(direction, 500),
+        lifespan(2),
+        "bullet",
+    ]);
+
+    const spread = 0.1;
+    bullet.angle += rand(-spread, spread);
+    
+    player.waterLevel--;
+    player.frame = player.waterLevel;
+    
+    player.shootCooldown = 0.2;
+});
+
+onCollide("bullet", "rock", (bullet, rock) => {
+    destroy(bullet);
 });
