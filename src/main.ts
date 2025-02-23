@@ -1,29 +1,55 @@
 import kaplay, { AreaComp, BodyComp, GameObj, PosComp, SpriteComp } from "kaplay";
 import "kaplay/global";
-//import {mousePos} from "kaplay/dist/declaration/gfx";
-
 
 kaplay();
 
-loadRoot("./"); // A good idea for Itch.io publishing later
-loadSprite("bean", "sprites/bean.png");
-loadSprite("sock", "sprites/Sock.png");
-loadSprite("greaser", "sprites/greaser.png");
-loadSprite("rock", "sprites/rock_1.png");
-loadSprite("staff", "sprites/staff-rotated.png");
-loadSprite("bunny", "sprites/dust bunny.png");
 loadSound("boom", "sounds/boom.mp3");
+loadRoot("./sprites/"); // A good idea for Itch.io publishing later
+loadSprite("bean", "bean.png");
+loadSprite("sock", "Sock.png");
+loadSprite("greaser", "greaser.png");
+loadSprite("rock", "rock_1.png");
+loadSprite("staff", "staff-rotated.png");
+loadSprite("bunny", "dust bunny.png");
+loadSprite("water bullet", "water-bullet.png");
+loadSprite("detergent", "detergent.png");
+
 
 // set background
 setBackground(105, 105, 105)
 
 // Player things
-
+const MELEE = "melee"; const RANGED = "ranged"; const MAGIC = "magic";
 let coins = 0;
 let health = 100;
-let inventory = []
+const SPEED = 300;
+class Weapon {
+    name: string;
+    damage: number;
+    type: string;
+    sprite: string
+    constructor(name: string, damage: number, type: string, sprite: string) {
+        this.name = name;
+        this.damage = damage;
+        this.type = type;
+        this.sprite = sprite;
+    }
+}
+class RangedWeapon extends Weapon {
+    projectiles: number;
+    projectileSprite: string;
+    constructor(name: string, damage: number, sprite: string, projectiles: number, projectileSprite: string) {
+        super(name, damage, RANGED, sprite);
+        this.projectiles = projectiles;
+        this.projectileSprite = projectileSprite;
+    }
+}
 
-const SPEED = 200;
+let inventory = [new RangedWeapon("Detergent", 5, "detergent",10,"water bullet"), new Weapon("Staff", 20, MELEE, "staff.png")]
+let equipped = inventory[0]
+
+
+
 
 
 let interactions = {
@@ -139,16 +165,17 @@ scene("title", () => {
         go("parking lot")
     })
 })
+
 go("title")
 scene("parking lot", () => {
     const player = add([
-        pos(120, 80), sprite("sock"), area(), body(), "player", anchor("center"),
+        sprite("sock"), pos(300,300), area(), body(), "player", anchor("center"),
     ]);
     const greaser = add([
         pos(200,100), sprite("greaser"), area(), body(), "greaser"
     ])
-    const weapon = add([
-        rect(10,100), pos(player.pos), area(), rotate(), "weapon", color(rgb(128,93,93)), outline(2,BLACK), anchor("center"),
+    let weapon = add([
+        sprite("staff"), pos(), area({scale:0.5}), body(), rotate(), "weapon", anchor("center"),
     ])
     onCollide("player", "greaser", () => {
         if (!interactions["Greaser"]) {
@@ -172,6 +199,7 @@ scene("parking lot", () => {
         healthText.pos = vec2(player.pos.sub(width() / 2 - 10, height() / 2 - 20))
         healthText.text = "Health: " + health
     })
+
     // combat stuff
     onCollide("player", "enemy", (p, e) => {
         health -= e.damage
@@ -180,32 +208,94 @@ scene("parking lot", () => {
             destroy(e)
         }
     })
-    let weaponDistance = width() / 25
-    // rotate the sword to face mouse
-    onUpdate("player", () => {
-        let weaponPos = new Vec2()
+    /*
+    Onclick handlers - deal with things here idk
+     */
+    onMousePress(() => {
+        if (talking) {
+            // do nothing, because you shouldn't be able to fight while talking
+            return
+        }
+        if (equipped.type == MELEE) {
+            tween(width() / 15, width() / 10, 1, (p) => weaponDistance = p, easings.easeOutBounce)
+            wait(0.1, () => {
+                tween(width() / 10, width() / 15, 1, (p) => weaponDistance = p, easings.easeOutBounce)
+            })
 
-        const a = mousePos().add(camPos()).sub(center());
-        let weaponAngle = Math.atan2(a.y, a.x)// - Math.PI
-        weaponPos.x = weaponDistance * Math.cos(weaponAngle) + player.pos.x
-        weaponPos.y = weaponDistance * Math.sin(weaponAngle) + player.pos.y
-        weapon.pos = weaponPos
-        weapon.angle = ((weaponAngle) * 180 / Math.PI)
+        } else if (equipped instanceof RangedWeapon) {
+            // do something with shooting projectiles idk
+            let weaponAngle = weapon.pos.angle(player.pos)
+
+            for (let i = 0; i < equipped.projectiles; i++) {
+                let variation = randi(-30,30);
+                const projectile = add([
+                    sprite(equipped.projectileSprite),
+                    pos(weapon.pos),
+                    area(),
+                    //body(),
+                    move(weaponAngle + variation, 500),
+                    rotate(variation),
+                    "projectile",
+                    {damage: equipped.damage}
+                ])
+                projectile.onCollide("enemy", (enemy) => {
+                    enemy.health -= projectile.damage;
+                    //debug.log('hit the enemy, dealing' + projectile.damage + ' which now has' + enemy.health + 'health!')
+                    if (enemy.health <= 0) {
+                        addKaboom(enemy.pos);
+                        destroy(enemy);
+                    }
+                    destroy(projectile);
+                });
+                wait(0.33, () => {
+                    destroy(projectile);
+                })
+            }
+        } else if (equipped.type == MAGIC) {
+            // do something with shooting magic idk
+        } else {
+            // this should never happen lol
+        }
+    })
+    let weaponDistance = width() / 15
+    // rotate the weapon to face mouse
+    // why does adding player position to weapon position cause the player to move???
+    weapon.onUpdate(() => {
+        const a = mousePos().sub(center()); // mouse position relative to center
+        const weaponAngle = Math.atan2(a.y, a.x)
+
+        let weaponPos = vec2(
+            weaponDistance * Math.cos(weaponAngle),
+            weaponDistance * Math.sin(weaponAngle)
+        )
+        weapon.pos = vec2(player.pos).add(weaponPos)
+        weapon.angle = (weaponAngle * 180) / Math.PI + 90
+    })
+    weapon.onCollide("enemy", (e) => {
+        e.health -= equipped.damage
+        if (e.health <= 0) {
+            addKaboom(e.pos)
+            destroy(e)
+        }
     })
 
     /*
     * Deal with player movement and camera things
     * */
-    onKeyDown("left", () => {
+    onKeyDown("a", () => {
+        if (talking) {return}
         player.move(-SPEED, 0);
     })
-    onKeyDown("right", () => {
+    onKeyDown("d", () => {
+        if (talking) {return}
         player.move(SPEED, 0);
     })
-    onKeyDown("up", () => {
+    onKeyDown("w", () => {
+        if (talking) {return}
         player.move(0, -SPEED);
     })
-    onKeyDown("down", () => {
+    onKeyDown("s", () => {
+        if (talking) {return}
         player.move(0, SPEED);
     })
     player.onUpdate(() => {
