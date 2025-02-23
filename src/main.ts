@@ -1,5 +1,7 @@
 import kaplay, { AreaComp, BodyComp, GameObj, PosComp, SpriteComp } from "kaplay";
 import "kaplay/global";
+//import {mousePos} from "kaplay/dist/declaration/gfx";
+
 
 kaplay();
 
@@ -8,11 +10,20 @@ loadSprite("bean", "sprites/bean.png");
 loadSprite("sock", "sprites/Sock.png");
 loadSprite("greaser", "sprites/greaser.png");
 loadSprite("rock", "sprites/rock_1.png");
+loadSprite("staff", "sprites/staff-rotated.png");
 loadSprite("bunny", "sprites/dust bunny.png");
 loadSound("boom", "sounds/boom.mp3");
 
 // set background
 setBackground(105, 105, 105)
+
+// Player things
+
+let coins = 0;
+let health = 100;
+let inventory = []
+
+const SPEED = 200;
 
 
 let interactions = {
@@ -31,14 +42,7 @@ const shopDialogue = [
 // dialogue handling code yoinked from one of my other games lol
 let talking = false
 
-function spawnBunny(player) {
-    return add([
-        sprite("bunny"),
-        area(),
-        body(),
-        pos(player.x + randi(-width()/2, width()/2), player.y + randi(-height()/2, height()/2))
-    ])
-}
+
 function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp>, dialogues: { speaker: string; text: string }[], onComplete?: () => void) {
     if (talking) {return}
 
@@ -93,12 +97,12 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
         currentDialogueIndex++;
         if (currentDialogueIndex < dialogues.length) {
             updateDialogue();
-            debug.log(currentDialogueIndex + " " + dialogues.length)
+            //debug.log(currentDialogueIndex + " " + dialogues.length)
         } else {
             destroy(dialogueBox);
             destroy(speakerText);
             destroy(dialogueText);
-            debug.log("done talking!");
+            //debug.log("done talking!");
             talking = false;
             dialoguePosUpdater.cancel();
             advanceDialogueListener.cancel();
@@ -138,10 +142,13 @@ scene("title", () => {
 go("title")
 scene("parking lot", () => {
     const player = add([
-        pos(120, 80), sprite("sock"), area(), body(), "player"
+        pos(120, 80), sprite("sock"), area(), body(), "player", anchor("center"),
     ]);
     const greaser = add([
-        pos(100,100), sprite("greaser"), area(), body(), "greaser"
+        pos(200,100), sprite("greaser"), area(), body(), "greaser"
+    ])
+    const weapon = add([
+        rect(10,100), pos(player.pos), area(), rotate(), "weapon", color(rgb(128,93,93)), outline(2,BLACK), anchor("center"),
     ])
     onCollide("player", "greaser", () => {
         if (!interactions["Greaser"]) {
@@ -150,10 +157,45 @@ scene("parking lot", () => {
         } else {
             showDialogue(player, shopDialogue);
         }
-
     })
 
-    const SPEED = 200;
+    /*
+    * HP related mechanics idk
+    * */
+    const healthText = add([
+        text("Health: NaN"),
+        pos(player.pos.sub(width() / 2 + 10, height() / 2 -+ 20)),
+        color(WHITE),
+        outline(2,BLACK)
+    ])
+    healthText.onUpdate(() => {
+        healthText.pos = vec2(player.pos.sub(width() / 2 - 10, height() / 2 - 20))
+        healthText.text = "Health: " + health
+    })
+    // combat stuff
+    onCollide("player", "enemy", (p, e) => {
+        health -= e.damage
+        if (e.type == "dust bunny") {
+            addKaboom(e.pos)
+            destroy(e)
+        }
+    })
+    let weaponDistance = width() / 25
+    // rotate the sword to face mouse
+    onUpdate("player", () => {
+        let weaponPos = new Vec2()
+
+        const a = mousePos().add(camPos()).sub(center());
+        let weaponAngle = Math.atan2(a.y, a.x)// - Math.PI
+        weaponPos.x = weaponDistance * Math.cos(weaponAngle) + player.pos.x
+        weaponPos.y = weaponDistance * Math.sin(weaponAngle) + player.pos.y
+        weapon.pos = weaponPos
+        weapon.angle = ((weaponAngle) * 180 / Math.PI)
+    })
+
+    /*
+    * Deal with player movement and camera things
+    * */
     onKeyDown("left", () => {
         player.move(-SPEED, 0);
     })
@@ -166,10 +208,12 @@ scene("parking lot", () => {
     onKeyDown("down", () => {
         player.move(0, SPEED);
     })
-
     player.onUpdate(() => {
         camPos(player.pos);
     })
+    /*
+    * Spawn in some trial objects
+    * */
     for (let i = 0; i < 10; i++) {
         add([
             pos(randi(width()), randi(height())),
@@ -177,5 +221,23 @@ scene("parking lot", () => {
             area({scale:0.75}),
             body(),
         ])
+        const bunny = add([
+                sprite("bunny"),
+                area(),
+                body(),
+                pos(player.pos.x + randi(-width()/4, width()/4), player.pos.y + randi(-height()/4, height()/4)),
+                //pos(center()),
+                "enemy",
+            timer(),
+                {damage: 10, health: 20, type: "dust bunny",}
+                ])
+        bunny.loop(rand(2,4), () => {
+            // player.x player.y
+            // 100 sin(
+            let angle = bunny.pos.angleBetween(player.pos)
+            bunny.tween(bunny.pos, vec2(100 * Math.cos(angle), 100 * Math.sin(angle)), 1, (p) => bunny.pos = p, easings.easeOutElastic)
+        })
+
+
     }
 })
