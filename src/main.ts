@@ -13,7 +13,7 @@ loadSprite("staff", "staff-rotated.png");
 loadSprite("bunny", "dust bunny.png");
 loadSprite("water bullet", "water-bullet.png");
 loadSprite("detergent", "detergent.png");
-
+loadSprite("boss", "boss-monster.png");
 
 // set background
 setBackground(105, 105, 105)
@@ -48,6 +48,231 @@ class RangedWeapon extends Weapon {
 let inventory = [new RangedWeapon("Detergent", 5, "detergent",10,"water bullet"), new Weapon("Staff", 20, MELEE, "staff.png")]
 let equipped = inventory[0]
 
+class Boss {
+    obj: GameObj;
+    healthBar: GameObj;
+    healthBarLabel: GameObj;
+    currentHealth: number;
+    maxHealth: number = 1000;
+    attackTimer: number = 0;
+    currentPattern: number = 0;
+    isAttacking: boolean = false;
+    destroyed: boolean = false;
+
+    constructor(position: { x: number, y: number }) {
+        try {
+            this.currentHealth = this.maxHealth;
+            this.obj = add([
+                sprite("boss"),
+                pos(position.x, position.y),
+                area({ width: 32, height: 32 }),
+                body({ isStatic: true }),
+                anchor("center"),
+                scale(2),
+                "enemy",
+                "boss",
+                {
+                    damage: 20,
+                    health: this.maxHealth,
+                    type: "boss",
+                    destroy: () => this.destroyBoss()
+                }
+            ]);
+
+            add([
+                rect(width() - 40, 30),
+                pos(20, 20),
+                color(0, 0, 0),
+                fixed(),
+                outline(2),
+                z(100),
+                "healthBarBg"
+            ]);
+
+            this.healthBar = add([
+                rect(width() - 40, 30),
+                pos(20, 20),
+                color(RED),
+                fixed(),
+                z(101)
+            ]);
+
+            this.healthBarLabel = add([
+                text("Sage of Mind Soractes", {
+                    size: 24,
+                    font: "arial",
+                }),
+                pos(width() / 2, 35),
+                anchor("center"),
+                color(WHITE),
+                fixed(),
+                z(102)
+            ]);
+
+            this.setupBehavior();
+        } catch (error) {
+            console.error("Error creating boss:", error);
+        }
+    }
+
+    private destroyBoss() {
+        if (this.destroyed) return;
+        this.destroyed = true;
+        
+        try {
+            const healthBarBg = get("healthBarBg")[0];
+            if (healthBarBg) destroy(healthBarBg);
+            
+            if (this.healthBar) destroy(this.healthBar);
+            if (this.healthBarLabel) destroy(this.healthBarLabel);
+            if (this.obj) destroy(this.obj);
+        } catch (error) {
+            console.error("Error destroying boss:", error);
+        }
+    }
+
+    private setupBehavior() {
+        this.healthBar.onUpdate(() => {
+            if (this.destroyed) return;
+            const healthPercent = this.obj.health / this.maxHealth;
+            this.healthBar.width = (width() - 40) * healthPercent;
+        });
+
+        this.obj.onUpdate(() => {
+            if (this.destroyed || this.isAttacking) return;
+
+            const player = get("player")[0];
+            if (!player) return;
+
+            const angle = Math.atan2(
+                player.pos.y - this.obj.pos.y,
+                player.pos.x - this.obj.pos.x
+            );
+            this.obj.move(Math.cos(angle) * 100, Math.sin(angle) * 100);
+
+            this.attackTimer += dt();
+            if (this.attackTimer >= 3) {
+                this.attackTimer = 0;
+                this.currentPattern = randi(0, 2);
+                this.executePattern(player);
+            }
+        });
+    }
+
+    private executePattern(player: GameObj) {
+        switch (this.currentPattern) {
+            case 0:
+                this.spreadAttack();
+                break;
+            case 1:
+                this.bigRockAttack(player);
+                break;
+            case 2:
+                this.retreat(player);
+                break;
+        }
+    }
+
+    private spreadAttack() {
+        this.isAttacking = true;
+        let duration = 0;
+        const attackInterval = setInterval(() => {
+            for (let i = 0; i < 8; i++) {
+                const angle = (i * 45) * (Math.PI / 180);
+                this.shootRock(angle, 600);
+            }
+            duration += 0.5;
+            if (duration >= 5) {
+                clearInterval(attackInterval);
+                this.isAttacking = false;
+            }
+        }, 500);
+    }
+
+    private bigRockAttack(player: GameObj) {
+        this.isAttacking = true;
+        const angle = Math.atan2(
+            player.pos.y - this.obj.pos.y,
+            player.pos.x - this.obj.pos.x
+        );
+        const rock = add([
+            sprite("rock"),
+            scale(3),
+            pos(this.obj.pos.x, this.obj.pos.y),
+            area(),
+            anchor("center"),
+            move(angle * (180 / Math.PI), 600),
+            "enemy",
+            "big-rock",
+            {
+                damage: 30,
+                health: 50,
+                isIndestructible: true
+            }
+        ]);
+
+        wait(3, () => {
+            destroy(rock);
+        });
+
+        wait(1, () => {
+            this.isAttacking = false;
+        });
+    }
+
+    private retreat(player: GameObj) {
+        this.isAttacking = true;
+        const angle = Math.atan2(
+            player.pos.y - this.obj.pos.y,
+            player.pos.x - this.obj.pos.x
+        ) + Math.PI;
+        
+        const targetPos = {
+            x: this.obj.pos.x + Math.cos(angle) * 200,
+            y: this.obj.pos.y + Math.sin(angle) * 200
+        };
+
+        tween(
+            this.obj.pos.x,
+            targetPos.x,
+            0.5,
+            (x) => this.obj.pos.x = x,
+            easings.easeOutCubic
+        );
+        
+        tween(
+            this.obj.pos.y,
+            targetPos.y,
+            0.5,
+            (y) => this.obj.pos.y = y,
+            easings.easeOutCubic
+        );
+
+        wait(0.5, () => {
+            this.isAttacking = false;
+        });
+    }
+
+    private shootRock(angle: number, speed: number) {
+        const rock = add([
+            sprite("rock"),
+            pos(this.obj.pos.x, this.obj.pos.y),
+            area(),
+            anchor("center"),
+            move(angle * (180 / Math.PI), speed),
+            "enemy",
+            "boss-rock",
+            {
+                damage: 15,
+                health: 20
+            }
+        ]);
+
+        wait(2, () => {
+            destroy(rock);
+        });
+    }
+}
 
 
 
@@ -208,6 +433,24 @@ scene("parking lot", () => {
             destroy(e)
         }
     })
+
+    const boss = new Boss({ x: width() / 2, y: height() / 2 });
+
+    onCollide("projectile", "boss", (p, b) => {
+        try {
+            if (!b.health) return;
+            b.health -= p.damage;
+            destroy(p);
+            
+            if (b.health <= 0 && b.destroy) {
+                addKaboom(b.pos);
+                b.destroy();
+            }
+        } catch (error) {
+            console.error("Error in collision handling:", error);
+        }
+    });
+
     /*
     Onclick handlers - deal with things here idk
      */
@@ -299,8 +542,8 @@ scene("parking lot", () => {
         player.move(0, SPEED);
     })
     player.onUpdate(() => {
-        camPos(player.pos);
-    })
+        setCamPos(player.pos);
+    });
     /*
     * Spawn in some trial objects
     * */
@@ -327,6 +570,9 @@ scene("parking lot", () => {
             let angle = bunny.pos.angleBetween(player.pos)
             bunny.tween(bunny.pos, vec2(100 * Math.cos(angle), 100 * Math.sin(angle)), 1, (p) => bunny.pos = p, easings.easeOutElastic)
         })
+        onSceneLeave(() => {
+            destroyAll("boss-rock");
+        });
 
 
     }
