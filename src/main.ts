@@ -7,6 +7,9 @@ loadSound("boom", "sounds/boom.mp3");
 loadRoot("./sprites/"); // A good idea for Itch.io publishing later
 loadSprite("bean", "bean.png");
 loadSprite("sock", "Sock.png");
+loadSprite("evil", "evil.png");
+loadSprite("sad", "sad.png");
+loadSprite("rocky", "rocky.png");
 loadSprite("greaser", "greaser.png");
 loadSprite("rock", "rock_1.png");
 loadSprite("staff", "staff-rotated.png");
@@ -15,38 +18,44 @@ loadSprite("water bullet", "water-bullet.png");
 loadSprite("detergent", "detergent.png");
 loadSprite("boss", "boss-monster.png");
 
-// set background
-setBackground(105, 105, 105)
+setBackground(105, 105, 105);
 
-// Player things
-const MELEE = "melee"; const RANGED = "ranged"; const MAGIC = "magic";
-let coins = 0;
-let health = 100;
+const MELEE = "melee";
+const RANGED = "ranged";
+const MAGIC = "magic";
 const SPEED = 300;
+
 class Weapon {
-    name: string;
-    damage: number;
-    type: string;
-    sprite: string
-    constructor(name: string, damage: number, type: string, sprite: string) {
+    constructor(name, damage, type, sprite) {
         this.name = name;
         this.damage = damage;
         this.type = type;
         this.sprite = sprite;
     }
 }
+
 class RangedWeapon extends Weapon {
-    projectiles: number;
-    projectileSprite: string;
-    constructor(name: string, damage: number, sprite: string, projectiles: number, projectileSprite: string) {
+    constructor(name, damage, sprite, projectiles, projectileSprite) {
         super(name, damage, RANGED, sprite);
         this.projectiles = projectiles;
         this.projectileSprite = projectileSprite;
     }
 }
 
-let inventory = [new RangedWeapon("Detergent", 5, "detergent",10,"water bullet"), new Weapon("Staff", 20, MELEE, "staff.png")]
-let equipped = inventory[0]
+const availableWeapons = [
+    new RangedWeapon("Detergent", 5, "detergent", 10, "water-bullet"),
+    new Weapon("Staff", 20, MELEE, "staff"),
+    new Weapon("Greaser", 15, MELEE, "greaser")
+];
+
+const availableSkins = ["sock", "evil", "sad", "rocky"];
+
+let inventory = [availableWeapons[0], availableWeapons[1], availableWeapons[2]];
+let equipped = inventory[0];
+let currentSkin = "sock";
+let inventoryOpen = false;
+let draggingItem = null;
+let draggingItemOriginalSlot = null;
 
 class Boss {
     obj: GameObj;
@@ -274,34 +283,15 @@ class Boss {
     }
 }
 
-
-
-
-let interactions = {
-    "Greaser": false,
-}
-const shopDialoguePrimary = [
-    {speaker: "Greaser", text: "Hey, I'm walking here!"},
-    {speaker: "Sockrates", text: "I'm sorry Greaser, I didn't see you there!"},
-    {speaker: "Greaser", text: "Oy Sockrates, ya don't have make fun of my height every time you see me!"},
-    {speaker: "Sockrates", text: "You know, it's been a long time since we last talked! What's new?"},
-    {speaker: "Greaser", text: "I've made this new shop, and i'm selling all sort of amazing items here."},
-]
-const shopDialogue = [
-    {speaker: "Greaser", text: "I have many great items, all for great prices!"}
-]
-// dialogue handling code yoinked from one of my other games lol
-let talking = false
-
+let talking = false;
 
 function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp>, dialogues: { speaker: string; text: string }[], onComplete?: () => void) {
     if (talking) {return}
 
     let currentDialogueIndex = 0;
-    talking = true
+    talking = true;
     const dialogueBox = add([
         rect(width() - 40, 100),
-        // pos looks alright, but y pos isn't good
         pos(player.pos.x - (width() / 2), player.pos.y + (height() / 2) - 120),
         outline(2),
         color(0, 0, 0),
@@ -327,17 +317,17 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
         "dialogueText"
     ]);
 
-    // make sure to update this here!
     const dialoguePosUpdater = dialogueBox.onUpdate(() => {
         dialogueBox.pos.x = (player.pos.x - (width() / 2));
         dialogueBox.pos.y = player.pos.y + (height() / 2) - 120;
 
-        speakerText.pos.x = player.pos.x - (width() / 2) + 10
-        speakerText.pos.y = player.pos.y + (height() / 2) - 100
+        speakerText.pos.x = player.pos.x - (width() / 2) + 10;
+        speakerText.pos.y = player.pos.y + (height() / 2) - 100;
 
-        dialogueText.pos.x = player.pos.x - (width() / 2) + 10
-        dialogueText.pos.y = player.pos.y + (height() / 2) - 80
-    })
+        dialogueText.pos.x = player.pos.x - (width() / 2) + 10;
+        dialogueText.pos.y = player.pos.y + (height() / 2) - 80;
+    });
+
     function updateDialogue() {
         const currentDialogue = dialogues[currentDialogueIndex];
         speakerText.text = currentDialogue.speaker;
@@ -348,12 +338,10 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
         currentDialogueIndex++;
         if (currentDialogueIndex < dialogues.length) {
             updateDialogue();
-            //debug.log(currentDialogueIndex + " " + dialogues.length)
         } else {
             destroy(dialogueBox);
             destroy(speakerText);
             destroy(dialogueText);
-            //debug.log("done talking!");
             talking = false;
             dialoguePosUpdater.cancel();
             advanceDialogueListener.cancel();
@@ -366,73 +354,404 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
     updateDialogue();
 }
 
-
-scene("title", () => {
-    const background = add([
-        rect(width(), height()),
-        pos(0,0),
-        color(BLACK),
-        "title"
-    ])
-    const titleText = add([
-        text("the saga of sockrates"),
-        pos(center()),
-        color(WHITE),
-        "title"
-    ])
-    const sockrates = add([
-        sprite("sock"),
-        pos(center().add(100,100)),
-        "title"
-    ])
-    onClick(() => {
-        destroyAll("title")
-        go("parking lot")
-    })
-})
-
-go("title")
-scene("parking lot", () => {
+scene("game", () => {
     const player = add([
-        sprite("sock"), pos(300,300), area(), body(), "player", anchor("center"),
+        sprite(currentSkin),
+        pos(300, 300),
+        area(),
+        body(),
+        "player",
+        anchor("center"),
     ]);
-    const greaser = add([
-        pos(200,100), sprite("greaser"), area(), body(), "greaser"
-    ])
-    let weapon = add([
-        sprite("staff"), pos(), area({scale:0.5}), body(), rotate(), "weapon", anchor("center"),
-    ])
-    onCollide("player", "greaser", () => {
-        if (!interactions["Greaser"]) {
-            showDialogue(player, shopDialoguePrimary)
-            interactions["Greaser"] = true
+
+    let weaponDistance = width() / 15;
+    const weapon = add([
+        sprite(equipped.sprite),
+        pos(player.pos),
+        area({ scale: 0.5 }),
+        body(),
+        rotate(),
+        "weapon",
+        anchor("center"),
+    ]);
+
+    onKeyDown("a", () => {
+        if (!inventoryOpen) player.move(-SPEED, 0);
+    });
+    onKeyDown("d", () => {
+        if (!inventoryOpen) player.move(SPEED, 0);
+    });
+    onKeyDown("w", () => {
+        if (!inventoryOpen) player.move(0, -SPEED);
+    });
+    onKeyDown("s", () => {
+        if (!inventoryOpen) player.move(0, SPEED);
+    });
+
+    player.onUpdate(() => {
+        setCamPos(player.pos);
+    });
+
+    onMousePress(() => {
+        if (inventoryOpen) return;
+        
+        if (equipped.type === MELEE) {
+            tween(width() / 15, width() / 10, 1, (p) => weaponDistance = p, easings.easeOutBounce);
+            wait(0.1, () => {
+                tween(width() / 10, width() / 15, 1, (p) => weaponDistance = p, easings.easeOutBounce);
+            });
+        } else if (equipped instanceof RangedWeapon) {
+            let weaponAngle = weapon.pos.angle(player.pos);
+            for (let i = 0; i < equipped.projectiles; i++) {
+                let variation = randi(-30, 30);
+                const projectile = add([
+                    sprite(equipped.projectileSprite),
+                    pos(weapon.pos),
+                    area(),
+                    move(weaponAngle + variation, 500),
+                    rotate(variation),
+                    "projectile",
+                    { damage: equipped.damage }
+                ]);
+                wait(0.33, () => {
+                    destroy(projectile);
+                });
+            }
+        }
+    });
+
+    weapon.onUpdate(() => {
+        if (inventoryOpen) return;
+        
+        const a = mousePos().sub(center());
+        const weaponAngle = Math.atan2(a.y, a.x);
+        let offset = vec2(
+            weaponDistance * Math.cos(weaponAngle),
+            weaponDistance * Math.sin(weaponAngle)
+        );
+        weapon.pos = player.pos.add(offset);
+        weapon.angle = (weaponAngle * 180) / Math.PI + 90;
+    });
+
+    const hotbarSlots = [];
+    const hotbarItems = [];
+    
+    for (let i = 0; i < 6; i++) {
+        const slotX = center().x - 180 + i * 40;
+        const slotY = height() - 40;
+        
+        const slot = add([
+            rect(36, 36),
+            outline(2, rgb(55, 55, 55)),
+            pos(slotX, slotY),
+            color(100, 100, 100),
+            fixed(),
+            opacity(0.8),
+            area(),
+            "hotbar-slot",
+            { slotIndex: i }
+        ]);
+        
+        hotbarSlots.push(slot);
+        
+        if (i < inventory.length) {
+            const item = add([
+                sprite(inventory[i].sprite),
+                pos(slotX, slotY),
+                scale(0.5),
+                fixed(),
+                area(),
+                "hotbar-item",
+                { weaponIndex: i }
+            ]);
+            
+            hotbarItems.push(item);
+        }
+    }
+    
+    let selectedSlot = 0;
+    
+    function updateSelectedSlot() {
+        hotbarSlots.forEach((slot, index) => {
+            if (index === selectedSlot) {
+                slot.color = rgb(150, 150, 150);
+                slot.outline = { width: 3, color: rgb(255, 255, 255) };
+            } else {
+                slot.color = rgb(100, 100, 100);
+                slot.outline = { width: 2, color: rgb(55, 55, 55) };
+            }
+        });
+    }
+    
+    for (let i = 1; i <= 6; i++) {
+        onKeyPress(i.toString(), () => {
+            selectedSlot = i - 1;
+            updateSelectedSlot();
+            
+            if (selectedSlot < inventory.length) {
+                equipped = inventory[selectedSlot];
+                weapon.use(sprite(equipped.sprite));
+            }
+        });
+    }
+    
+    updateSelectedSlot();
+
+    let inventoryUI = null;
+    let inventorySlots = [];
+    let inventoryItems = [];
+    let skinSlots = [];
+    let skinItems = [];
+
+    onKeyPress("e", () => {
+        inventoryOpen = !inventoryOpen;
+        
+        if (inventoryOpen) {
+            inventoryUI = add([
+                rect(600, 400),
+                pos(center()),
+                color(64, 64, 64),
+                outline(4, rgb(32, 32, 32)),
+                anchor("center"),
+                fixed(),
+                "inventory"
+            ]);
+            
+            add([
+                text("Inventory", { size: 24 }),
+                pos(center().x, center().y - 150),
+                color(255, 255, 255),
+                anchor("center"),
+                fixed(),
+                "inventory-title"
+            ]);
+
+            const characterPreviewX = center().x - 170;
+            const characterPreviewY = center().y;
+            
+            add([
+                rect(150, 220),
+                pos(characterPreviewX, characterPreviewY),
+                color(40, 40, 40),
+                outline(2, rgb(30, 30, 30)),
+                anchor("center"),
+                fixed(),
+                "character-preview"
+            ]);
+            
+            const preview = add([
+                sprite(currentSkin),
+                pos(characterPreviewX, characterPreviewY - 40),
+                scale(2),
+                anchor("center"),
+                fixed(),
+                "character-sprite"
+            ]);
+            
+            add([
+                text("Skins", { size: 18 }),
+                pos(characterPreviewX, characterPreviewY + 30),
+                color(255, 255, 255),
+                anchor("center"),
+                fixed(),
+                "skins-title"
+            ]);
+            
+            const skinStartX = characterPreviewX - 80;
+            const skinY = characterPreviewY + 70;
+            
+            availableSkins.forEach((skin, index) => {
+                const slotX = skinStartX + index * 40;
+                
+                const skinSlot = add([
+                    rect(36, 36),
+                    outline(2, rgb(55, 55, 55)),
+                    pos(slotX, skinY),
+                    color(100, 100, 100),
+                    opacity(0.8),
+                    fixed(),
+                    area(),
+                    "skin-slot",
+                    { skinIndex: index }
+                ]);
+                
+                skinSlots.push(skinSlot);
+                
+                const skinItem = add([
+                    sprite(skin),
+                    pos(slotX, skinY),
+                    scale(0.4),
+                    fixed(),
+                    area(),
+                    "skin-item",
+                    { skinName: skin }
+                ]);
+                
+                skinItems.push(skinItem);
+                
+                if (skin === currentSkin) {
+                    skinSlot.color = rgb(150, 150, 150);
+                    skinSlot.outline = { width: 3, color: rgb(255, 255, 255) };
+                }
+                
+                skinItem.onClick(() => {
+                    currentSkin = skin;
+                    preview.use(sprite(currentSkin));
+                    
+                    skinSlots.forEach((s, i) => {
+                        if (i === index) {
+                            s.color = rgb(150, 150, 150);
+                            s.outline = { width: 3, color: rgb(255, 255, 255) };
+                        } else {
+                            s.color = rgb(100, 100, 100);
+                            s.outline = { width: 2, color: rgb(55, 55, 55) };
+                        }
+                    });
+                });
+            });
+
+            const slotSize = 40;
+            const startX = center().x + 15;
+            const startY = center().y - 80;
+            
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 6; col++) {
+                    const slotX = startX + col * slotSize;
+                    const slotY = startY + row * slotSize;
+                    
+                    const slot = add([
+                        rect(36, 36),
+                        outline(2, rgb(55, 55, 55)),
+                        pos(slotX, slotY),
+                        color(100, 100, 100),
+                        opacity(0.8),
+                        fixed(),
+                        area(),
+                        "inventory-slot",
+                        { row, col, slotIndex: row * 6 + col }
+                    ]);
+                    
+                    inventorySlots.push(slot);
+                    
+                    if (row === 0 && col < inventory.length) {
+                        const item = add([
+                            sprite(inventory[col].sprite),
+                            pos(slotX, slotY),
+                            scale(0.5),
+                            fixed(),
+                            area(),
+                            "inventory-item",
+                            { weaponIndex: col }
+                        ]);
+                        
+                        inventoryItems.push(item);
+                        
+                        item.onClick(() => {
+                            if (!draggingItem) {
+                                draggingItem = item;
+                                draggingItemOriginalSlot = slot.slotIndex;
+                            }
+                        });
+                    }
+                }
+            }
+            
+            add([
+                text("Items", { size: 18 }),
+                pos(center().x + 100, startY - 30),
+                color(255, 255, 255),
+                anchor("center"),
+                fixed(),
+                "items-title"
+            ]);
+
         } else {
-            showDialogue(player, shopDialogue);
+            destroyAll("inventory");
+            destroyAll("inventory-title");
+            destroyAll("inventory-slot");
+            destroyAll("inventory-item");
+            destroyAll("character-preview");
+            destroyAll("character-sprite");
+            destroyAll("skins-title");
+            destroyAll("skin-slot");
+            destroyAll("skin-item");
+            destroyAll("items-title");
+            
+            player.use(sprite(currentSkin));
+            
+            inventorySlots = [];
+            inventoryItems = [];
+            skinSlots = [];
+            skinItems = [];
+            
+            draggingItem = null;
+            draggingItemOriginalSlot = null;
         }
-    })
-
-    /*
-    * HP related mechanics idk
-    * */
-    const healthText = add([
-        text("Health: NaN"),
-        pos(player.pos.sub(width() / 2 + 10, height() / 2 -+ 20)),
-        color(WHITE),
-        outline(2,BLACK)
-    ])
-    healthText.onUpdate(() => {
-        healthText.pos = vec2(player.pos.sub(width() / 2 - 10, height() / 2 - 20))
-        healthText.text = "Health: " + health
-    })
-
-    // combat stuff
-    onCollide("player", "enemy", (p, e) => {
-        health -= e.damage
-        if (e.type == "dust bunny") {
-            addKaboom(e.pos)
-            destroy(e)
+    });
+    
+    onMouseMove(() => {
+        if (draggingItem) {
+            draggingItem.pos = mousePos();
         }
-    })
+    });
+    
+    onMouseRelease(() => {
+        if (draggingItem) {
+            let foundSlot = false;
+            
+            inventorySlots.forEach(slot => {
+                if (mousePos().dist(slot.pos) < 20) {
+                    foundSlot = true;
+                    
+                    const weaponIndex = draggingItem.weaponIndex;
+                    
+                    const destSlotIndex = slot.slotIndex;
+                    
+                    if (destSlotIndex < inventory.length) {
+                        const temp = inventory[weaponIndex];
+                        inventory[weaponIndex] = inventory[destSlotIndex];
+                        inventory[destSlotIndex] = temp;
+                        
+                        if (equipped === inventory[weaponIndex]) {
+                            equipped = inventory[destSlotIndex];
+                        } else if (equipped === inventory[destSlotIndex]) {
+                            equipped = inventory[weaponIndex];
+                        }
+                        
+                        weapon.use(sprite(equipped.sprite));
+                        
+                        hotbarItems.forEach(item => {
+                            if (item.weaponIndex === weaponIndex) {
+                                item.use(sprite(inventory[weaponIndex].sprite));
+                            } else if (item.weaponIndex === destSlotIndex) {
+                                item.use(sprite(inventory[destSlotIndex].sprite));
+                            }
+                        });
+                        
+                        inventoryItems.forEach(item => {
+                            if (item.weaponIndex === weaponIndex) {
+                                item.use(sprite(inventory[weaponIndex].sprite));
+                            } else if (item.weaponIndex === destSlotIndex) {
+                                item.use(sprite(inventory[destSlotIndex].sprite));
+                            }
+                        });
+                    }
+                    
+                    draggingItem.pos = slot.pos;
+                }
+            });
+            
+            if (!foundSlot) {
+                const originalSlot = inventorySlots.find(slot => slot.slotIndex === draggingItemOriginalSlot);
+                if (originalSlot) {
+                    draggingItem.pos = originalSlot.pos;
+                }
+            }
+            
+            draggingItem = null;
+            draggingItemOriginalSlot = null;
+        }
+    });
 
     const boss = new Boss({ x: width() / 2, y: height() / 2 });
 
@@ -451,129 +770,33 @@ scene("parking lot", () => {
         }
     });
 
-    /*
-    Onclick handlers - deal with things here idk
-     */
-    onMousePress(() => {
-        if (talking) {
-            // do nothing, because you shouldn't be able to fight while talking
-            return
-        }
-        if (equipped.type == MELEE) {
-            tween(width() / 15, width() / 10, 1, (p) => weaponDistance = p, easings.easeOutBounce)
-            wait(0.1, () => {
-                tween(width() / 10, width() / 15, 1, (p) => weaponDistance = p, easings.easeOutBounce)
-            })
-
-        } else if (equipped instanceof RangedWeapon) {
-            // do something with shooting projectiles idk
-            let weaponAngle = weapon.pos.angle(player.pos)
-
-            for (let i = 0; i < equipped.projectiles; i++) {
-                let variation = randi(-30,30);
-                const projectile = add([
-                    sprite(equipped.projectileSprite),
-                    pos(weapon.pos),
-                    area(),
-                    //body(),
-                    move(weaponAngle + variation, 500),
-                    rotate(variation),
-                    "projectile",
-                    {damage: equipped.damage}
-                ])
-                projectile.onCollide("enemy", (enemy) => {
-                    enemy.health -= projectile.damage;
-                    //debug.log('hit the enemy, dealing' + projectile.damage + ' which now has' + enemy.health + 'health!')
-                    if (enemy.health <= 0) {
-                        addKaboom(enemy.pos);
-                        destroy(enemy);
-                    }
-                    destroy(projectile);
-                });
-                wait(0.33, () => {
-                    destroy(projectile);
-                })
-            }
-        } else if (equipped.type == MAGIC) {
-            // do something with shooting magic idk
-        } else {
-            // this should never happen lol
-        }
-    })
-    let weaponDistance = width() / 15
-    // rotate the weapon to face mouse
-    // why does adding player position to weapon position cause the player to move???
-    weapon.onUpdate(() => {
-        const a = mousePos().sub(center()); // mouse position relative to center
-        const weaponAngle = Math.atan2(a.y, a.x)
-
-        let weaponPos = vec2(
-            weaponDistance * Math.cos(weaponAngle),
-            weaponDistance * Math.sin(weaponAngle)
-        )
-        weapon.pos = vec2(player.pos).add(weaponPos)
-        weapon.angle = (weaponAngle * 180) / Math.PI + 90
-    })
-    weapon.onCollide("enemy", (e) => {
-        e.health -= equipped.damage
-        if (e.health <= 0) {
-            addKaboom(e.pos)
-            destroy(e)
-        }
-    })
-
-    /*
-    * Deal with player movement and camera things
-    * */
-    onKeyDown("a", () => {
-        if (talking) {return}
-        player.move(-SPEED, 0);
-    })
-    onKeyDown("d", () => {
-        if (talking) {return}
-        player.move(SPEED, 0);
-    })
-    onKeyDown("w", () => {
-        if (talking) {return}
-        player.move(0, -SPEED);
-    })
-    onKeyDown("s", () => {
-        if (talking) {return}
-        player.move(0, SPEED);
-    })
-    player.onUpdate(() => {
-        setCamPos(player.pos);
-    });
-    /*
-    * Spawn in some trial objects
-    * */
     for (let i = 0; i < 10; i++) {
         add([
             pos(randi(width()), randi(height())),
             sprite("rock"),
-            area({scale:0.75}),
+            area({ scale: 0.75 }),
             body(),
-        ])
+        ]);
+        
         const bunny = add([
-                sprite("bunny"),
-                area(),
-                body(),
-                pos(player.pos.x + randi(-width()/4, width()/4), player.pos.y + randi(-height()/4, height()/4)),
-                //pos(center()),
-                "enemy",
+            sprite("bunny"),
+            area(),
+            body(),
+            pos(player.pos.x + randi(-width() / 4, width() / 4), player.pos.y + randi(-height() / 4, height() / 4)),
+            "enemy",
             timer(),
-                {damage: 10, health: 20, type: "dust bunny",}
-                ])
-        bunny.loop(rand(2,4), () => {
-            // player.x player.y
-            // 100 sin(
-            let angle = bunny.pos.angleBetween(player.pos)
-            bunny.tween(bunny.pos, vec2(100 * Math.cos(angle), 100 * Math.sin(angle)), 1, (p) => bunny.pos = p, easings.easeOutElastic)
-        })
-        onSceneLeave(() => {
-            destroyAll("boss-rock");
+            { damage: 10, health: 20, type: "dust bunny" }
+        ]);
+        
+        bunny.loop(rand(2, 4), () => {
+            let angle = bunny.pos.angleBetween(player.pos);
+            bunny.tween(bunny.pos, vec2(100 * Math.cos(angle), 100 * Math.sin(angle)), 1, (p) => bunny.pos = p, easings.easeOutElastic);
         });
-
-
     }
-})
+
+    onSceneLeave(() => {
+        destroyAll("boss-rock");
+    });
+});
+
+go("game");
