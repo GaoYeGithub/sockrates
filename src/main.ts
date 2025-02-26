@@ -15,7 +15,7 @@ loadSprite("rock", "rock_1.png");
 loadSprite("staff", "staff.png");
 loadSprite("bunny", "dust bunny.png");
 loadSprite("water bullet", "water-bullet.png");
-loadSprite("detergent", "detergent.png");
+loadSprite("detergent", "Detergent.png");
 loadSprite("boss", "boss-monster.png");
 
 setBackground(105, 105, 105);
@@ -32,11 +32,13 @@ class Weapon {
     damage: number;
     type: string;
     sprite: string;
-    constructor(name: string, damage: number, type: string, sprite: string) {
+    cooldown: number;
+    constructor(name: string, damage: number, cooldown: number, type: string, sprite: string) {
         this.name = name;
         this.damage = damage;
         this.type = type;
         this.sprite = sprite;
+        this.cooldown = cooldown;
     }
 }
 
@@ -44,8 +46,8 @@ class RangedWeapon extends Weapon {
     projectiles: number;
     projectileSprite: string;
     lifetime: number;
-    constructor(name: string, damage: number, sprite: string, projectiles: number, projectileSprite: string, lifetime: number) {
-        super(name, damage, RANGED, sprite);
+    constructor(name: string, damage: number, cooldown: number, sprite: string, projectiles: number, projectileSprite: string, lifetime: number) {
+        super(name, damage, cooldown, RANGED, sprite);
         this.projectiles = projectiles;
         this.projectileSprite = projectileSprite;
         this.lifetime = lifetime;
@@ -53,9 +55,9 @@ class RangedWeapon extends Weapon {
 }
 
 const availableWeapons = [
-    new RangedWeapon("Detergent", 5, "detergent", 10, "water-bullet", 0.5),
-    new Weapon("Staff", 20, MELEE, "staff"),
-    new Weapon("Greaser", 15, MELEE, "greaser")
+    new RangedWeapon("Detergent", 2, 3, "detergent", 10, "water bullet", 0.5),
+    new Weapon("Staff", 20, 1, MELEE, "staff"),
+    new Weapon("Greaser", 15, 1, MELEE, "greaser")
 ];
 
 const availableSkins = ["sock", "evil", "sad", "rocky"];
@@ -372,8 +374,11 @@ scene("game", () => {
         body(),
         "player",
         anchor("center"),
+        {health: 100}
     ]);
-
+    /*
+        * weapon related stuff
+        * */
     let weaponDistance = width() / 15;
     const weapon = add([
         sprite(equipped.sprite),
@@ -384,22 +389,30 @@ scene("game", () => {
         "weapon",
         anchor("center"),
     ]);
+    weapon.onCollide("enemy", (enemy) => {
+        enemy.health -= equipped.damage;
+        if (enemy.health <= 0) {
+            addKaboom(enemy.pos);
+            destroy(enemy);
+        }
+    })
+
     /*
     * HP related mechanics IDK
     * */
     const healthText = add([
         text("Health: NaN"),
-        pos((player.pos.sub(width() / 2 - 10, -height() / 2 + 40))),
+        pos(player.pos.sub(width() / 2 - 10, -height() / 2 + 40)),
         color(WHITE),
         outline(2,BLACK),
         fixed(),
     ])
     healthText.onUpdate(() => {
-        healthText.text = "Health: " + health
+        healthText.text = "Health: " + player.health
     })
     const coinsText = add([
-        text(),
-        pos(player.pos.sub(width() / 2 - 10, -height() / 2 + 40)),
+        text(""),
+        pos(player.pos.sub(width() / 2 - 10, -height() / 2 + 80)),
         color(WHITE),
         outline(2, BLACK),
         fixed(),
@@ -425,19 +438,26 @@ scene("game", () => {
         setCamPos(player.pos);
     });
 
-    onMousePress(() => {
+    /*
+    * Weapon "firing" handlers
+    * */
+    let cooldown = false;
+    onMouseDown(() => {
         if (inventoryOpen) return;
-
+        if (cooldown) return;
+        cooldown = true;
+        wait (equipped.cooldown, () => {
+            cooldown = false;
+        })
         if (equipped.type === MELEE) {
             tween(width() / 15, width() / 10, 1, (p) => weaponDistance = p, easings.easeOutBounce);
             wait(0.1, () => {
                 tween(width() / 10, width() / 15, 1, (p) => weaponDistance = p, easings.easeOutBounce)
             })
-
         } else if (equipped instanceof RangedWeapon) {
             let weaponAngle = weapon.pos.angle(player.pos);
             for (let i = 0; i < equipped.projectiles; i++) {
-                let variation = randi(-30, 30);
+                let variation = randi(-3 * equipped.projectiles, 3 * equipped.projectiles);
                 const projectile = add([
                     sprite(equipped.projectileSprite),
                     pos(weapon.pos),
@@ -462,7 +482,7 @@ scene("game", () => {
             }
         }
     });
-
+    // weapon angle
     weapon.onUpdate(() => {
         if (inventoryOpen) return;
 
@@ -830,7 +850,11 @@ scene("game", () => {
             timer(),
             { damage: 10, health: 20, type: "dust bunny" }
         ]);
-
+        bunny.onCollide("player", () => {
+            player.health -= bunny.damage;
+            addKaboom(bunny.pos);
+            destroy(bunny)
+        })
         bunny.loop(rand(2, 4), () => {
             let angle = bunny.pos.angleBetween(player.pos);
             bunny.tween(bunny.pos, vec2(100 * Math.cos(angle), 100 * Math.sin(angle)), 1, (p) => bunny.pos = p, easings.easeOutElastic);
