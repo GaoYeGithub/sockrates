@@ -1,10 +1,11 @@
 import kaplay, { AreaComp, BodyComp, GameObj, PosComp, SpriteComp } from "kaplay";
 import "kaplay/global";
 
+
 kaplay();
 
 loadSound("boom", "sounds/boom.mp3");
-loadRoot("./sprites/"); // A good idea for Itch.io publishing later
+loadRoot("./sprites/"); // A good idea for Itch.io publishing later (what does this mean)
 loadSprite("bean", "bean.png");
 loadSprite("sock", "Sock.png");
 loadSprite("evil", "evil.png");
@@ -33,6 +34,8 @@ class Weapon {
     type: string;
     sprite: string;
     cooldown: number;
+    onCooldown: boolean = false;
+    cooldownRemaining: number = 0;
     constructor(name: string, damage: number, cooldown: number, type: string, sprite: string) {
         this.name = name;
         this.damage = damage;
@@ -368,6 +371,7 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
 }
 
 scene("game", () => {
+    coins = 0;
     const player = add([
         sprite(currentSkin),
         pos(300, 300),
@@ -382,6 +386,11 @@ scene("game", () => {
         if(enemy.destroyOnCollide) {
             destroy(enemy)
             addKaboom(enemy.pos);
+        }
+        if (player.health < 0) {
+            destroy(player);
+            addKaboom(player.pos);
+            go("gameover");
         }
     })
     /*
@@ -399,7 +408,7 @@ scene("game", () => {
         anchor("center"),
     ]);
     weapon.onCollide("enemy", (enemy) => {
-        if (cooldown) { return }
+        if (equipped.onCooldown) { return }
         enemy.health -= equipped.damage;
         if (enemy.health <= 0) {
             addKaboom(enemy.pos);
@@ -440,7 +449,7 @@ scene("game", () => {
 
     let cooldownTime = 0;
     reloadText.onUpdate(() => {
-        if (cooldown) {
+        if (equipped.onCooldown) {
             cooldownTime -= dt();
             if (cooldownTime < 0) cooldownTime = 0;
             reloadText.text = "Reloading: " + cooldownTime.toFixed(2);
@@ -473,11 +482,11 @@ scene("game", () => {
     let cooldown = false;
     onMouseDown(() => {
         if (inventoryOpen) return;
-        if (cooldown) return;
-        cooldown = true;
+        if (equipped.onCooldown) return;
+        equipped.onCooldown = true;
         cooldownTime = equipped.cooldown;
         wait (equipped.cooldown, () => {
-            cooldown = false;
+            equipped.onCooldown = false;
             cooldownTime = 0;
         })
         if (equipped.type === MELEE) {
@@ -892,4 +901,23 @@ scene("game", () => {
     });
 });
 
+scene("gameover", () => {
+    add([
+        text("lol u died, git gud", { size: 48 }),
+        pos(center()),
+        color(255, 255, 255),
+        anchor("center"),
+    ]);
+
+    add([
+        text("Press any key to restart", { size: 24 }),
+        pos(center().x, center().y + 50),
+        color(255, 255, 255),
+        anchor("center"),
+    ]);
+
+    onKeyPress(() => {
+        go("game");
+    });
+})
 go("game");
