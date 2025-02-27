@@ -285,7 +285,8 @@ class Boss {
             "boss-rock",
             {
                 damage: 15,
-                health: 20
+                health: 20,
+                destroyOnCollide: true,
             }
         ]);
 
@@ -376,6 +377,13 @@ scene("game", () => {
         anchor("center"),
         {health: 100}
     ]);
+    player.onCollide("enemy", (enemy) => {
+        player.health -= enemy.damage;
+        if(enemy.destroyOnCollide) {
+            destroy(enemy)
+            addKaboom(enemy.pos);
+        }
+    })
     /*
         * weapon related stuff
         * */
@@ -387,9 +395,11 @@ scene("game", () => {
         body(),
         rotate(),
         "weapon",
+        timer(),
         anchor("center"),
     ]);
     weapon.onCollide("enemy", (enemy) => {
+        if (cooldown) { return }
         enemy.health -= equipped.damage;
         if (enemy.health <= 0) {
             addKaboom(enemy.pos);
@@ -402,7 +412,7 @@ scene("game", () => {
     * */
     const healthText = add([
         text("Health: NaN"),
-        pos(player.pos.sub(width() / 2 - 10, -height() / 2 + 40)),
+        pos(10, height() - 40),
         color(WHITE),
         outline(2,BLACK),
         fixed(),
@@ -412,13 +422,32 @@ scene("game", () => {
     })
     const coinsText = add([
         text(""),
-        pos(player.pos.sub(width() / 2 - 10, -height() / 2 + 80)),
+        pos(10, height() - 80),
         color(WHITE),
         outline(2, BLACK),
         fixed(),
     ])
     coinsText.onUpdate(() => {
         coinsText.text = "Coins:" + coins;
+    })
+    const reloadText = add([
+        text(""),
+        pos(10, height() - 120),
+        color(WHITE),
+        outline(2, BLACK),
+        fixed(),
+    ])
+
+    let cooldownTime = 0;
+    reloadText.onUpdate(() => {
+        if (cooldown) {
+            cooldownTime -= dt();
+            if (cooldownTime < 0) cooldownTime = 0;
+            reloadText.text = "Reloading: " + cooldownTime.toFixed(2);
+        } else {
+            reloadText.text = "Reloaded";
+        }
+
     })
 
     onKeyDown("a", () => {
@@ -446,8 +475,10 @@ scene("game", () => {
         if (inventoryOpen) return;
         if (cooldown) return;
         cooldown = true;
+        cooldownTime = equipped.cooldown;
         wait (equipped.cooldown, () => {
             cooldown = false;
+            cooldownTime = 0;
         })
         if (equipped.type === MELEE) {
             tween(width() / 15, width() / 10, 1, (p) => weaponDistance = p, easings.easeOutBounce);
@@ -848,13 +879,8 @@ scene("game", () => {
             pos(player.pos.x + randi(-width() / 4, width() / 4), player.pos.y + randi(-height() / 4, height() / 4)),
             "enemy",
             timer(),
-            { damage: 10, health: 20, type: "dust bunny" }
+            { damage: 10, health: 20, type: "dust bunny", destroyOnCollide: true }
         ]);
-        bunny.onCollide("player", () => {
-            player.health -= bunny.damage;
-            addKaboom(bunny.pos);
-            destroy(bunny)
-        })
         bunny.loop(rand(2, 4), () => {
             let angle = bunny.pos.angleBetween(player.pos);
             bunny.tween(bunny.pos, vec2(100 * Math.cos(angle), 100 * Math.sin(angle)), 1, (p) => bunny.pos = p, easings.easeOutElastic);
