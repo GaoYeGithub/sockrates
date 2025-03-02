@@ -5,6 +5,12 @@ import "kaplay/global";
 kaplay();
 
 loadSound("boom", "sounds/boom.mp3");
+loadSound("cock", "sounds/cock.mp3");
+loadSound("equip", "sounds/item-equip.mp3");
+loadSound("score", "sounds/score.mp3");
+loadSound("oof", "sounds/oof.mp3");
+loadSound("slash", "sounds/slash.mp3");
+loadSound("drum", "sounds/whoosh-drum.mp3");
 loadRoot("./sprites/"); // A good idea for Itch.io publishing later (what does this mean)
 loadSprite("bean", "bean.png");
 loadSprite("sock", "Sock.png");
@@ -18,6 +24,11 @@ loadSprite("bunny", "dust bunny.png");
 loadSprite("water bullet", "water-bullet.png");
 loadSprite("detergent", "Detergent.png");
 loadSprite("boss", "boss-monster.png");
+loadSprite("coin", "Coin.png");
+loadSprite("golden coin", "golden-Coin.png")
+loadSprite("orb", "orb.png")
+loadSprite("stick", "Stick.png")
+
 
 setBackground(105, 105, 105);
 
@@ -59,8 +70,9 @@ class RangedWeapon extends Weapon {
 
 const availableWeapons = [
     new RangedWeapon("Detergent", 2, 3, "detergent", 10, "water bullet", 0.5),
-    new Weapon("Staff", 20, 1, MELEE, "staff"),
-    new Weapon("Greaser", 15, 1, MELEE, "greaser")
+    new RangedWeapon("Staff", 2, 0.1, "staff", 2, "orb", 1),
+    new Weapon("Greaser", 15, 0.33, MELEE, "greaser"),
+    new Weapon("Stick", 10, 0.25, MELEE, "stick"),
 ];
 
 const availableSkins = ["sock", "evil", "sad", "rocky"];
@@ -99,6 +111,7 @@ class Boss {
                     damage: 20,
                     health: this.maxHealth,
                     type: "boss",
+                    coins: 50,
                     destroy: () => this.destroyBoss()
                 }
             ]);
@@ -189,6 +202,7 @@ class Boss {
                 this.spreadAttack();
                 break;
             case 1:
+                play("drum");
                 this.bigRockAttack(player);
                 break;
             case 2:
@@ -370,7 +384,26 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
     updateDialogue();
 }
 
+
 scene("game", () => {
+    function spawnCoins(position, coinCount) {
+
+        if (coinCount == undefined) {return}
+        debug.log("here!" + coinCount);
+        for (let i = 0; i < coinCount; i++) {
+            const isGoldenCoin = Math.random() < 0.1; // 10% chance to spawn a golden coin
+            const coinSprite = isGoldenCoin ? "golden coin" : "coin";
+            const coinValue = isGoldenCoin ? 10 : 1;
+            add([
+                sprite(coinSprite),
+                pos(position),
+                area({scale: 0.5, collisionIgnore: ["weapon", "enemy"]}),
+                body(),
+                "coin",
+                { value: coinValue}
+            ]);
+        }
+    }
     coins = 0;
     const player = add([
         sprite(currentSkin),
@@ -387,11 +420,16 @@ scene("game", () => {
             destroy(enemy)
             addKaboom(enemy.pos);
         }
-        if (player.health < 0) {
+        if (player.health <= 0) {
             destroy(player);
             addKaboom(player.pos);
             go("gameover");
         }
+    })
+    player.onCollide("coin", (coin) => {
+        coins += coin.value;
+        destroy(coin);
+        play("score"); // coin sound
     })
     /*
         * weapon related stuff
@@ -412,6 +450,7 @@ scene("game", () => {
         enemy.health -= equipped.damage;
         if (enemy.health <= 0) {
             addKaboom(enemy.pos);
+            spawnCoins(enemy.pos, enemy.coins);
             destroy(enemy);
         }
     })
@@ -479,17 +518,23 @@ scene("game", () => {
     /*
     * Weapon "firing" handlers
     * */
-    let cooldown = false;
+
     onMouseDown(() => {
+
         if (inventoryOpen) return;
+        if (equipped.onCooldown && cooldownTime == 0) {
+            equipped.onCooldown = false;
+        }
         if (equipped.onCooldown) return;
         equipped.onCooldown = true;
         cooldownTime = equipped.cooldown;
         wait (equipped.cooldown, () => {
             equipped.onCooldown = false;
             cooldownTime = 0;
+            if(equipped.type == RANGED) play("cock");
         })
         if (equipped.type === MELEE) {
+            play("slash")
             tween(width() / 15, width() / 10, 1, (p) => weaponDistance = p, easings.easeOutBounce);
             wait(0.1, () => {
                 tween(width() / 10, width() / 15, 1, (p) => weaponDistance = p, easings.easeOutBounce)
@@ -512,6 +557,7 @@ scene("game", () => {
                     //debug.log('hit the enemy, dealing' + projectile.damage + ' which now has' + enemy.health + 'health!')
                     if (enemy.health <= 0) {
                         addKaboom(enemy.pos);
+                        spawnCoins(enemy.pos, enemy.coins);
                         destroy(enemy);
                     }
                     destroy(projectile);
@@ -588,6 +634,7 @@ scene("game", () => {
 
     for (let i = 1; i <= 6; i++) {
         onKeyPress(i.toString(), () => {
+            play("equip")
             selectedSlot = i - 1;
             updateSelectedSlot();
 
@@ -888,7 +935,7 @@ scene("game", () => {
             pos(player.pos.x + randi(-width() / 4, width() / 4), player.pos.y + randi(-height() / 4, height() / 4)),
             "enemy",
             timer(),
-            { damage: 10, health: 20, type: "dust bunny", destroyOnCollide: true }
+            { damage: 10, health: 20, coins: 2, type: "dust bunny", destroyOnCollide: true }
         ]);
         bunny.loop(rand(2, 4), () => {
             let angle = bunny.pos.angleBetween(player.pos);
@@ -902,6 +949,7 @@ scene("game", () => {
 });
 
 scene("gameover", () => {
+    play("oof");
     add([
         text("lol u died, git gud", { size: 48 }),
         pos(center()),
