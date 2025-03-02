@@ -28,9 +28,28 @@ loadSprite("coin", "Coin.png");
 loadSprite("golden coin", "golden-Coin.png")
 loadSprite("orb", "orb.png")
 loadSprite("stick", "Stick.png")
+loadSprite("background","temple-background.png");
+loadSprite("evil", "sprites/evil.png");
+loadSprite("rocky", "sprites/rocky.png");
+loadSprite("sad", "sprites/sad.png");
+loadSprite("gatcha", "sprites/gatcha.png", {
+    sliceX: 5,
+    sliceY: 1,
+});
 
+const STATES = {
+    MAIN: "main",
+    SPINNING: "spinning",
+    RESULT: "result"
+};
+let currentState = STATES.MAIN;
+let currentFrame = 0;
+let spinTimer = 0;
+let spinDuration = 0;
+let resultSprite = null;
+let selectedCharacter = "";
 
-setBackground(105, 105, 105);
+//setBackground(105, 105, 105);
 
 const MELEE = "melee";
 const RANGED = "ranged";
@@ -77,7 +96,7 @@ const availableWeapons = [
 
 const availableSkins = ["sock", "evil", "sad", "rocky"];
 
-let inventory = [availableWeapons[0], availableWeapons[1], availableWeapons[2]];
+let inventory = [availableWeapons[3], availableWeapons[0], availableWeapons[2]];
 let equipped = inventory[0];
 let currentSkin = "sock";
 let inventoryOpen = false;
@@ -157,6 +176,7 @@ class Boss {
         this.destroyed = true;
         
         try {
+            spawnCoins(this.obj.pos, 100);
             const healthBarBg = get("healthBarBg")[0];
             if (healthBarBg) destroy(healthBarBg);
             
@@ -384,27 +404,122 @@ function showDialogue(player: GameObj<PosComp | AreaComp | SpriteComp | BodyComp
     updateDialogue();
 }
 
+function spawnCoins(position, coinCount) {
+
+    if (coinCount == undefined) {return}
+    debug.log("here!" + coinCount);
+    for (let i = 0; i < coinCount; i++) {
+        const isGoldenCoin = Math.random() < 0.1; // 10% chance to spawn a golden coin
+        const coinSprite = isGoldenCoin ? "golden coin" : "coin";
+        const coinValue = isGoldenCoin ? 10 : 1;
+        add([
+            sprite(coinSprite),
+            pos(position),
+            area({scale: 0.5, collisionIgnore: ["weapon", "enemy", "rock"]}),
+            body(),
+            "coin",
+            { value: coinValue}
+        ]);
+    }
+}
+let gachaPrice = 5;
+scene("gatcha", () => {
+    // steal coins display
+    const coinsText = add([
+        text(""),
+        pos(10, height() - 80),
+        color(WHITE),
+        outline(2, BLACK),
+        fixed(),
+    ])
+    coinsText.onUpdate(() => {
+        coinsText.text = "Coins:" + coins;
+    });
+    const gachaDisplay = add([
+        sprite("gatcha", { frame: 0 }),
+        pos(width() / 2, height() / 2),
+        anchor("center"),
+    ]);
+
+    const FRAME_TIME = 0.1;
+    let frameTimer = 0;
+
+    onKeyPress("s", () => {
+        if (currentState === STATES.MAIN) {
+            if (coins<gachaPrice) {return}
+            currentState = STATES.SPINNING;
+            spinDuration = rand(2, 4);
+            spinTimer = 0;
+            if (resultSprite) destroy(resultSprite);
+        }
+    });
+
+    onClick(() => {
+        if (currentState === STATES.RESULT) {
+            currentState = STATES.MAIN;
+            if (resultSprite) {
+                destroy(resultSprite);
+                resultSprite = null;
+            }
+        }
+    });
+
+    onUpdate(() => {
+        switch (currentState) {
+            case STATES.SPINNING:
+                frameTimer += dt();
+                if (frameTimer >= FRAME_TIME) {
+                    frameTimer = 0;
+                    currentFrame = (currentFrame + 1) % 5;
+                    gachaDisplay.frame = currentFrame;
+                }
+
+                spinTimer += dt();
+                if (spinTimer >= spinDuration) {
+                    currentState = STATES.RESULT;
+                    const finalFrame = randi(0, 4);
+                    gachaDisplay.frame = finalFrame;
+
+                    const spriteMap = ["sock", "sock", "evil", "rocky", "sad"];
+                    selectedCharacter = spriteMap[finalFrame];
+
+                    if (selectedCharacter !== "sock") {
+                        resultSprite = add([
+                            sprite(selectedCharacter),
+                            pos(width() / 2, height() / 2),
+                            anchor("center"),
+                            scale(0.1),
+                        ]);
+                    }
+                }
+                break;
+
+            case STATES.RESULT:
+                if (resultSprite) {
+                    const targetScale = 1;
+                    const scaleSpeed = 2;
+                    const currentScale = resultSprite.scale.x;
+
+                    if (currentScale < targetScale) {
+                        const newScale = Math.min(currentScale + scaleSpeed * dt(), targetScale);
+                        resultSprite.scale = vec2(newScale);
+                    }
+                }
+                break;
+        }
+    });
+});
 
 scene("game", () => {
-    function spawnCoins(position, coinCount) {
+    add([
+        sprite("background"),
+        pos(width() / 2, height() / 2),
+        anchor("center"),
+        scale(1)
+    ]);
+    // background
 
-        if (coinCount == undefined) {return}
-        debug.log("here!" + coinCount);
-        for (let i = 0; i < coinCount; i++) {
-            const isGoldenCoin = Math.random() < 0.1; // 10% chance to spawn a golden coin
-            const coinSprite = isGoldenCoin ? "golden coin" : "coin";
-            const coinValue = isGoldenCoin ? 10 : 1;
-            add([
-                sprite(coinSprite),
-                pos(position),
-                area({scale: 0.5, collisionIgnore: ["weapon", "enemy"]}),
-                body(),
-                "coin",
-                { value: coinValue}
-            ]);
-        }
-    }
-    coins = 0;
+
     const player = add([
         sprite(currentSkin),
         pos(300, 300),
@@ -924,7 +1039,7 @@ scene("game", () => {
         add([
             pos(randi(width()), randi(height())),
             sprite("rock"),
-            area({ scale: 0.75 }),
+            area({ scale: 0.75, collisionIgnore: ["weapon", "rock"] }),
             body(),
         ]);
 
@@ -946,10 +1061,13 @@ scene("game", () => {
     onSceneLeave(() => {
         destroyAll("boss-rock");
     });
+    // do something with the gacha
+
 });
 
 scene("gameover", () => {
     play("oof");
+    coins=0;
     add([
         text("lol u died, git gud", { size: 48 }),
         pos(center()),
@@ -963,6 +1081,10 @@ scene("gameover", () => {
         color(255, 255, 255),
         anchor("center"),
     ]);
+    for (let i = 0; i < inventory.length; i++) {
+        inventory[i].onCooldown = false;
+        inventory[i].cooldownRemaining = 0;
+    }
 
     onKeyPress(() => {
         go("game");

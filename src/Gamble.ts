@@ -1,3 +1,6 @@
+import kaplay, { AreaComp, BodyComp, GameObj, PosComp, SpriteComp } from "kaplay";
+import "kaplay/global";
+
 //gambling code
 //I think this is the rarities the stuff and the things and the stuff
 //i dont get this language at all
